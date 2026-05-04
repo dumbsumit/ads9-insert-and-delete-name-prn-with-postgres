@@ -1,62 +1,85 @@
+require("dotenv").config();
 const express = require("express");
-const mongoose = require("mongoose");
+const { Sequelize, DataTypes, Op } = require("sequelize");
 const cors = require("cors");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose
-  .connect("mongodb://127.0.0.1:27017/PRN_DB")
-  .then(() => console.log("✅ MongoDB connected to PRN_DB"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+// PostgreSQL Connection via Sequelize
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 5432,
+    dialect: "postgres",
+    logging: false, // Set to console.log to see SQL queries
+  }
+);
 
-// Mongoose Schema & Model
-const userSchema = new mongoose.Schema({
-  firstName: { type: String, required: true, trim: true },
-  lastName: { type: String, required: true, trim: true },
-  username: { type: String, required: true, unique: true, trim: true },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
+sequelize
+  .authenticate()
+  .then(() => console.log(`✅ PostgreSQL connected to ${process.env.DB_NAME}`))
+  .catch((err) => console.error("❌ PostgreSQL connection error:", err));
+
+// Sequelize Model
+const User = sequelize.define(
+  "User",
+  {
+    firstName: { type: DataTypes.STRING, allowNull: false },
+    lastName: { type: DataTypes.STRING, allowNull: false },
+    username: { type: DataTypes.STRING, allowNull: false, unique: true },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      validate: {
+        isEmail: { msg: "Please enter a valid email address" },
+      },
+    },
+    phoneNumber: { type: DataTypes.STRING, allowNull: false },
+    prn: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
-  phoneNumber: { type: String, required: true, trim: true },
-  prn: { type: String, required: true, unique: true, trim: true },
-});
+  {
+    tableName: "users",
+    timestamps: false,
+  }
+);
 
-const User = mongoose.model("User", userSchema, "users");
+// Sync database
+sequelize.sync().then(() => console.log("✅ Database synced"));
 
 // ✅ Helper: Check for duplicate username, email, or prn (excludes current ID for updates)
 const checkDuplicates = async (username, email, prn, excludeId = null) => {
-  const query = excludeId ? { _id: { $ne: excludeId } } : {};
+  const whereClause = excludeId ? { id: { [Op.ne]: excludeId } } : {};
 
   if (username) {
-    const existingUsername = await User.findOne({ username, ...query });
+    const existingUsername = await User.findOne({
+      where: { username, ...whereClause },
+    });
     if (existingUsername)
       return { conflict: true, message: "Username already exists" };
   }
 
   if (email) {
     const existingEmail = await User.findOne({
-      email: email.toLowerCase(),
-      ...query,
+      where: { email: email.toLowerCase(), ...whereClause },
     });
     if (existingEmail)
       return { conflict: true, message: "Email already exists" };
   }
 
   if (prn) {
-    const existingPrn = await User.findOne({ prn, ...query });
-    if (existingPrn)
-      return { conflict: true, message: "PRN already exists" };
+    const existingPrn = await User.findOne({
+      where: { prn, ...whereClause },
+    });
+    if (existingPrn) return { conflict: true, message: "PRN already exists" };
   }
 
   return { conflict: false };
@@ -72,8 +95,11 @@ app.post("/add", async (req, res) => {
       return res.status(409).json({ error: duplicate.message });
     }
 
-    const user = new User(req.body);
-    const savedUser = await user.save();
+    // Force lowercase email
+    const userData = { ...req.body };
+    if (userData.email) userData.email = userData.email.toLowerCase();
+
+    const savedUser = await User.create(userData);
     res.status(201).json(savedUser);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -83,7 +109,7 @@ app.post("/add", async (req, res) => {
 // GET /get → Fetch all users
 app.get("/get", async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.findAll();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -95,20 +121,29 @@ app.put("/update/:id", async (req, res) => {
   try {
     const { username, email, prn } = req.body;
 
-    const duplicate = await checkDuplicates(username, email, prn, req.params.id);
+    const duplicate = await checkDuplicates(
+      username,
+      email,
+      prn,
+      req.params.id
+    );
     if (duplicate.conflict) {
       return res.status(409).json({ error: duplicate.message });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    const userData = { ...req.body };
+    if (userData.email) userData.email = userData.email.toLowerCase();
+
+    const [updatedCount] = await User.update(userData, {
+      where: { id: req.params.id },
     });
 
-    if (!updatedUser) {
+    if (updatedCount === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // Fetch the updated user to return it
+    const updatedUser = await User.findByPk(req.params.id);
     res.json(updatedUser);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -118,8 +153,11 @@ app.put("/update/:id", async (req, res) => {
 // DELETE /delete/:id → Delete a user by ID
 app.delete("/delete/:id", async (req, res) => {
   try {
-    const deletedUser = await User.findByIdAndDelete(req.params.id);
-    if (!deletedUser) {
+    const deletedCount = await User.destroy({
+      where: { id: req.params.id },
+    });
+    
+    if (deletedCount === 0) {
       return res.status(404).json({ error: "User not found" });
     }
     res.json({ message: "User deleted successfully" });

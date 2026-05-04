@@ -97,7 +97,7 @@ export class AppComponent implements OnInit {
     this.email = user.email;
     this.phoneNumber = user.phoneNumber;
     this.prn = user.prn;
-    this.editingId = user._id || null;
+    this.editingId = user.id || null;
   }
 
   deleteUser(id: string): void {
