@@ -1,0 +1,189 @@
+<div class="app-container">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">👤</span>
+        <h1>User Management</h1>
+      </div>
+      <p class="subtitle">MEAN Stack CRUD Application</p>
+    </div>
+  </header>
+
+  <!-- Toast Message -->
+  <div class="toast" *ngIf="message" [class.success]="messageType === 'success'" [class.error]="messageType === 'error'">
+    {{ message }}
+  </div>
+
+  <main class="main-content">
+    <!-- Form Card -->
+    <section class="card form-card">
+      <h2 class="card-title">
+        <span class="card-icon">{{ editingId ? '✏️' : '➕' }}</span>
+        {{ editingId ? 'Update User' : 'Add New User' }}
+      </h2>
+
+      <form (ngSubmit)="addUser()" class="user-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input
+              type="text"
+              id="firstName"
+              [(ngModel)]="firstName"
+              name="firstName"
+              placeholder="Enter first name"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input
+              type="text"
+              id="lastName"
+              [(ngModel)]="lastName"
+              name="lastName"
+              placeholder="Enter last name"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input
+              type="text"
+              id="username"
+              [(ngModel)]="username"
+              name="username"
+              placeholder="Enter username"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input
+              type="email"
+              id="email"
+              [(ngModel)]="email"
+              name="email"
+              placeholder="Enter email address"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="phoneNumber">Phone Number (10 digits)</label>
+            <input
+              type="tel"
+              id="phoneNumber"
+              [(ngModel)]="phoneNumber"
+              name="phoneNumber"
+              placeholder="Enter 10-digit phone number"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="prn">PRN (6-10 alphanumeric)</label>
+            <input
+              type="text"
+              id="prn"
+              [(ngModel)]="prn"
+              name="prn"
+              placeholder="Enter PRN"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            {{ editingId ? '💾 Update User' : '➕ Add User' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            *ngIf="editingId"
+            (click)="cancelEdit()"
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Users List Card -->
+    <section class="card list-card">
+      <h2 class="card-title">
+        <span class="card-icon">📋</span>
+        User List
+        <span class="badge">{{ users.length }}</span>
+      </h2>
+
+      <!-- Loading Spinner -->
+      <div class="loading" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Loading users...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" *ngIf="!loading && users.length === 0">
+        <span class="empty-icon">📭</span>
+        <p>No users found. Add your first user above!</p>
+      </div>
+
+      <!-- User Table -->
+      <div class="table-wrapper" *ngIf="!loading && users.length > 0">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th class="col-index">#</th>
+              <th class="col-fname">First Name</th>
+              <th class="col-lname">Last Name</th>
+              <th class="col-uname">Username</th>
+              <th class="col-email">Email</th>
+              <th class="col-phone">Phone</th>
+              <th class="col-prn">PRN</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of users; let i = index" class="user-row">
+              <td class="index-cell">{{ i + 1 }}</td>
+              <td class="fname-cell">
+                <div class="name-content">
+                  <div class="avatar">{{ user.firstName.charAt(0).toUpperCase() }}</div>
+                  <span>{{ user.firstName }}</span>
+                </div>
+              </td>
+              <td class="lname-cell">{{ user.lastName }}</td>
+              <td class="uname-cell">{{ user.username }}</td>
+              <td class="email-cell">{{ user.email }}</td>
+              <td class="phone-cell">{{ user.phoneNumber }}</td>
+              <td class="prn-cell">{{ user.prn }}</td>
+              <td class="actions-cell">
+                <button class="btn-icon btn-edit" (click)="editUser(user)" title="Edit">
+                  ✏️
+                </button>
+                <button class="btn-icon btn-delete" (click)="deleteUser(user._id!)" title="Delete">
+                  🗑️
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>MEAN Stack CRUD App &bull; MongoDB &bull; Express &bull; Angular &bull; Node.js</p>
+  </footer>
+</div>
